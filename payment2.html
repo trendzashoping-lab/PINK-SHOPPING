@@ -1,0 +1,197 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Pink Secret · Checkout</title>
+<style>
+  :root { --pink:#ff77b7; --pink-2:#ffd7ea; --ink:#222; --muted:#667; }
+  *{box-sizing:border-box}
+  body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:var(--ink); background:#fff5fa}
+  .wrap{max-width:980px; margin:24px auto; padding:0 14px}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:900; color:#d81b60}
+  .brand img{height:40px}
+  .h1{font-size:28px; font-weight:900; margin:12px 0 6px}
+  .grid{display:grid; grid-template-columns:1.1fr .9fr; gap:18px}
+  @media (max-width:860px){ .grid{grid-template-columns:1fr} }
+
+  .card{background:#fff; border-radius:16px; box-shadow:0 8px 24px rgba(0,0,0,.06); padding:16px}
+  .row-between{display:flex; align-items:center; justify-content:space-between}
+  .muted{color:var(--muted)}
+  .pill{display:inline-block; background:var(--pink-2); color:#b31257; font-weight:700; border-radius:999px; padding:4px 10px; font-size:12px}
+
+  .items .item{display:grid; grid-template-columns:72px 1fr auto; gap:12px; align-items:center; padding:10px 0; border-bottom:1px dashed #eee}
+  .items .item:last-child{border-bottom:0}
+  .items img{width:72px; height:72px; object-fit:cover; border-radius:10px; background:#f4f4f6}
+  .price{font-weight:900}
+  .sum-row{display:flex; justify-content:space-between; margin-top:10px}
+
+  .btn{appearance:none; border:0; border-radius:12px; padding:12px 16px; font-weight:800; cursor:pointer}
+  .btn.primary{background:var(--pink); color:#fff}
+  .btn.ghost{background:#fff; border:2px solid var(--pink); color:#d81b60}
+  select, input, textarea{width:100%; padding:10px 12px; border-radius:10px; border:1px solid #e8e8ee; background:#fff}
+  .field{display:flex; flex-direction:column; gap:6px; margin-top:12px}
+
+  .empty{padding:16px; text-align:center; color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <img src="https://i.postimg.cc/3NNt56LQ/pink.png" alt="Pink Secret">
+      <div>Pink Secret</div>
+    </div>
+    <div class="h1">Checkout</div>
+
+    <!-- 空购物车提示 -->
+    <div id="warn" class="card" style="display:none; border:2px dashed #ffc0d8;">
+      <div class="row-between">
+        <div class="muted">Your cart is empty. Please go back to keep shopping.</div>
+      </div>
+    </div>
+
+    <div class="grid" id="ckGrid" style="display:none">
+      <!-- 左侧：订单列表 -->
+      <section class="card">
+        <div class="row-between">
+          <div style="font-weight:900">Order Summary</div>
+          <div id="ckCount" class="muted">0 items</div>
+        </div>
+
+        <div id="orderList" class="items" style="margin-top:12px"></div>
+
+        <div class="sum-row"><div class="muted">Subtotal</div><div id="ckSubtotal" class="price">RM 0.00</div></div>
+        <div class="sum-row">
+          <div class="muted">Shipping</div>
+          <select id="ckShipSel" style="max-width:220px">
+            <option value="0">Pick-up (Free)</option>
+            <option value="20">Standard – RM 20.00</option>
+            <option value="35" selected>Express – RM 35.00</option>
+            <option value="50">Priority – RM 50.00</option>
+          </select>
+        </div>
+        <div class="sum-row" style="font-size:18px; margin-top:12px; border-top:1px dashed #eee; padding-top:12px">
+          <div style="font-weight:900">Total</div><div id="ckTotal" class="price">RM 0.00</div>
+        </div>
+      </section>
+
+      
+
+      <!-- 右侧：收货信息 + 按钮 -->
+      <aside class="card">
+        <div style="font-weight:900">Shipping Information</div>
+        <div class="field">
+          <label>Full Name</label>
+          <input id="fullName" placeholder="Your full name" required />
+        </div>
+        <div class="field">
+          <label>Address</label>
+          <textarea id="addr" placeholder="Street, City, State / Province"></textarea>
+        </div>
+        <div class="field">
+          <label>Note (optional)</label>
+          <input id="note" placeholder="e.g., Leave at reception" />
+        </div>
+
+        <div class="row-between" style="margin-top:14px">
+          Back
+          <button id="goPay" class="btn primary">Confirm & Pay</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+<script>
+  const RM = n => 'RM ' + (+n||0).toFixed(2);
+
+  function readItems() {
+    try { return JSON.parse(localStorage.getItem('PS_ORDER_ITEMS') || '[]'); }
+    catch { return []; }
+  }
+
+  function saveTotals(sub, ship) {
+    const total = (+sub)+(+ship);
+    localStorage.setItem('PS_ORDER_TOTALS', JSON.stringify({ sub:+sub, ship:+ship, total }));
+  }
+
+  function saveInfo() {
+    const info = {
+      name: document.getElementById('fullName').value.trim(),
+      addr: document.getElementById('addr').value.trim(),
+      note: document.getElementById('note').value.trim()
+    };
+    localStorage.setItem('PS_CHECKOUT_INFO', JSON.stringify(info));
+  }
+
+  function renderCheckout() {
+    const items   = readItems();
+    const warn    = document.getElementById('warn');
+    const grid    = document.getElementById('ckGrid');
+    const listEl  = document.getElementById('orderList');
+    const cntEl   = document.getElementById('ckCount');
+    const subEl   = document.getElementById('ckSubtotal');
+    const totEl   = document.getElementById('ckTotal');
+    const shipSel = document.getElementById('ckShipSel');
+
+    if (!items.length) {
+      warn.style.display = 'block';
+      grid.style.display = 'none';
+      return;
+    }
+    warn.style.display = 'none';
+    grid.style.display = '';
+
+    listEl.innerHTML = '';
+    let sub = 0, count = 0;
+
+    items.forEach(it=>{
+      const qty  = +it.qty||0;
+      const unit = +it.price||0;
+      const line = unit * qty;
+      sub   += line;
+      count += qty;
+
+      const row = document.createElement('div');
+      row.className = 'item';
+      row.innerHTML = `
+        <img src="${it.img}" alt="${it.name}">
+        <div>
+          <div style="font-weight:800">${it.name}</div>
+          <div class="muted"><span class="pill">Qty × ${qty}</span></div>
+          <div class="muted" style="margin-top:4px">Unit: ${RM(unit)}</div>
+        </div>
+        <div class="price">${RM(line)}</div>
+      `;
+      listEl.appendChild(row);
+    });
+
+    cntEl.textContent = count + (count>1 ? ' items' : ' item');
+    subEl.textContent = RM(sub);
+
+    const ship = +shipSel.value || 0;
+    totEl.textContent = RM(sub + ship);
+
+    // 同步给 payment 页面
+    saveTotals(sub, ship);
+  }
+
+  // 事件：更改运费时重算
+  document.getElementById('ckShipSel').addEventListener('change', renderCheckout);
+
+  // 点击去付款：存收货信息并跳转
+  document.getElementById('goPay').addEventListener('click', ()=>{
+    saveInfo();
+    const info = JSON.parse(localStorage.getItem('PS_CHECKOUT_INFO')||'{}');
+    if (!info.name || !info.addr) {
+      alert('Please fill in Full Name and Address.');
+      return;
+    }
+    location.href = 'pay3.html';
+  });
+
+  // 初始化
+  document.addEventListener('DOMContentLoaded', renderCheckout);
+</script>
+</body>
+</html>

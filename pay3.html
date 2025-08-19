@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pink Secret · Payment</title>
+<style>
+  :root{--bg:#ffeef5;--card:#fff;--ink:#1f2937;--muted:#6b7280;--brand:#ff4fb0;--line:#e5e7eb;--ok:#16a34a}
+  *{box-sizing:border-box}
+  body{margin:0;font:16px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg)}
+  header{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);z-index:2}
+  .wrap{max-width:1100px;margin:auto;padding:18px}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand img{width:28px;height:28px;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  main{max-width:1100px;margin:22px auto;padding:0 18px}
+  .grid{display:grid;grid-template-columns:1.25fr .95fr;gap:18px}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 4px 12px rgba(0,0,0,.05)}
+  .card h2{margin:0;padding:16px 18px;border-bottom:1px dashed var(--line);font-size:18px}
+  .pad{padding:16px 18px}
+  .muted{color:var(--muted)}
+  .row-between{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .price{color:#059669;font-weight:800}
+  .total{font-weight:800;font-size:20px}
+  .item{display:grid;grid-template-columns:64px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px dashed var(--line)}
+  .item:last-child{border-bottom:none}
+  .thumb{width:64px;height:64px;border-radius:10px;object-fit:cover;border:1px solid var(--line)}
+  .qr{margin-top:8px;padding:16px;border-radius:14px;background:#fff;border:1px dashed var(--line)}
+  .qr img{width:100%;max-width:360px;display:block;margin:12px auto;border-radius:12px;border:1px solid var(--line);box-shadow:0 6px 14px rgba(0,0,0,.06)}
+  .notice{background:#fff7fb;border:1px dashed #ffd0ea;padding:12px;border-radius:10px;color:#7a214d}
+  footer{padding:22px 18px;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="brand">
+        <img src="https://i.postimg.cc/3NNt56LQ/pink.png" alt="Pink Secret">
+        <strong>Pink Secret</strong>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid">
+      <!-- 左侧：订单概要（与 checkout 同步） -->
+      <section class="card">
+        <h2 class="row-between">
+          <span>Order Summary</span>
+          <span class="muted" id="itemCount">0 items</span>
+        </h2>
+        <div class="pad" id="orderList"></div>
+        <div class="pad">
+          <div class="row-between" style="margin:8px 0">
+            <div class="muted">Subtotal</div>
+            <div id="pmSubtotal" class="price">RM 0.00</div>
+          </div>
+          <div class="row-between" style="margin:8px 0">
+            <div class="muted">Shipping</div>
+            <div id="pmShipping" class="price">RM 0.00</div>
+          </div>
+          <div class="row-between" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+            <div class="total">Total</div>
+            <div id="pmTotal" class="total price">RM 0.00</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 右侧：二维码（无支付方式选择，直接展示） -->
+      <section class="card">
+        <h2>Payment</h2>
+        <div class="pad">
+          <div class="qr" id="qrBlock">
+            <div style="font-weight:800; margin-bottom:6px">Scan to Pay</div>
+            <img src="https://i.postimg.cc/dV9vBRpN/E-TNG-QR.jpg" alt="Payment QR">
+            <div class="notice">
+              <div style="font-weight:700; margin-bottom:6px">Notice</div>
+              <p>Please write <b>"contractor"</b> or <b>"payment"</b> in the payment note. Any sensitive words will be ignored or may result in legal consequences!</p >
+              <p>If you have any issues, please contact our customer service to obtain the QR code.</p >
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="muted">© Pink Secret</footer>
+
+<script>
+
+
+/* ---------- helpers ---------- */
+const RM = n => 'RM ' + (+n || 0).toFixed(2);
+const getJSON = (k, fb)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):fb; }catch(e){ return fb; } };
+
+/* ---------- 数据读取（与 checkout 保持一致） ----------
+ * 期望：
+ *   PS_ORDER_ITEMS: [{id, name, img, price, qty}]
+ *   PS_ORDER_TOTALS: {subtotal, shipping, total}
+ * 兼容：
+ *   PS_SHIP: number
+ */
+function getTotals(){
+  const t = getJSON('PS_ORDER_TOTALS', null);
+  if (t) return t;
+  const items = getJSON('PS_ORDER_ITEMS', []);
+  const sub = items.reduce((s,it)=> s + (+it.price||0) * (+it.qty||0), 0);
+  const ship = Number(localStorage.getItem('PS_SHIP')) || 0;
+  return { subtotal: sub, shipping: ship, total: sub + ship };
+}
+
+/* ---------- 渲染 ---------- */
+function render(){
+  const items  = getJSON('PS_ORDER_ITEMS', []);
+  const totals = getTotals();
+
+  const listEl = document.getElementById('orderList');
+  const cntEl  = document.getElementById('itemCount');
+  const subEl  = document.getElementById('pmSubtotal');
+  const shipEl = document.getElementById('pmShipping');
+  const totEl  = document.getElementById('pmTotal');
+
+  listEl.innerHTML = '';
+  let count = 0;
+
+  items.forEach(it=>{
+    count += (+it.qty||0);
+    const row = document.createElement('div');
+    row.className = 'item';
+    row.innerHTML = `
+      <img class="thumb" src="${it.img}" alt="${it.name}">
+      <div>
+        <div style="font-weight:800">${it.name}</div>
+        <div class="muted">Qty × ${it.qty} · Unit: ${RM(it.price)}</div>
+      </div>
+      <div class="price">${RM((+it.price||0) * (+it.qty||0))}</div>
+    `;
+    listEl.appendChild(row);
+  });
+
+  cntEl.textContent = count + (count===1?' item':' items');
+  subEl.textContent  = RM(totals.subtotal);
+  shipEl.textContent = RM(totals.shipping);
+  totEl.textContent  = RM(totals.total);
+}
+
+/* ---------- 启动 ---------- */
+window.addEventListener('DOMContentLoaded', render);
+</script>
+</body>
+</html>

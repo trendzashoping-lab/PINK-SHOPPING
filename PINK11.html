@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Pink Secret</title>
+<style>
+:root{
+  --bg:#0b0c10; --card:#15161b; --muted:#9aa4b5; --text:#eef2f7; --brand:#ff4fb0; --line:#242935; --ok:#20c997;
+}
+*{box-sizing:border-box}
+body{margin:0; font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial, Helvetica, sans-serif; background:var(--bg); color:var(--text);}
+header{position:sticky; top:0; z-index:2; background:linear-gradient(180deg, #0b0c10, rgba(11,12,16,.7)); border-bottom:1px solid var(--line)}
+.wrap{max-width:1100px; margin:auto; padding:12px 16px; display:flex; align-items:center; gap:12px}
+.logo{display:flex; align-items:center; gap:10px; font-weight:800}
+.logo img{width:28px; height:28px; border-radius:50%}
+main{max-width:1100px; margin:22px auto; padding:0 16px}
+.grid{display:grid; grid-template-columns:repeat(4,1fr); gap:18px}
+.card{background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.card img{width:100%; height:210px; object-fit:cover; display:block}
+.pad{padding:12px}
+.pill{display:inline-block; padding:2px 8px; font-size:12px; border-radius:999px; background:#1f2230; color:#b9c0cc}
+.title{font-weight:800; margin-top:6px}
+.muted{color:var(--muted); font-size:13px}
+.price{color:var(--ok); font-weight:900}
+.row-right{display:flex; justify-content:flex-end; gap:8px; margin-top:10px}
+.btn{padding:10px 14px; border-radius:10px; border:1px solid var(--line); background:#202433; color:var(--text); cursor:pointer}
+.btn.primary{background:var(--brand); border-color:#ff4fb0; color:#190713; font-weight:700}
+.cart-btn{margin-left:auto}
+.sheet{position:fixed; inset:auto 0 0 0; background:var(--card); border-top:1px solid var(--line); transform:translateY(110%); transition:.25s; z-index:5; max-height:75vh; overflow:auto}
+.sheet.show{transform:translateY(0)}
+.row-between{display:flex; justify-content:space-between; align-items:center; gap:8px}
+.items .item{display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; padding:10px 0; border-bottom:1px dashed #2a2f40}
+.items img{width:60px; height:60px; object-fit:cover; border-radius:8px; border:1px solid #2a2f40}
+.qty button{width:26px; height:26px; border-radius:6px; border:1px solid var(--line); background:#202433; color:var(--text); cursor:pointer}
+.total{font-weight:900; color:var(--ok)}
+@media (max-width:900px){ .grid{grid-template-columns:repeat(2,1fr)} }
+/* ========= 左侧抽屉式购物车（替换旧的 #cart.sheet 样式） ========= */
+#cart.sheet{
+  position: fixed;
+  top: 0;
+  left: 0;                 /* 左侧抽屉 */
+  right: auto;
+  width: min(88vw, 440px); /* 手机友好，最大 440px */
+  height: 100dvh;          /* 占满屏（支持移动端 address bar） */
+  background: #111;        /* 你要的深色背景（换回白色用 #fff） */
+  color: #eee;
+  box-shadow: 4px 0 18px rgba(0,0,0,.35);
+  transform: translateX(-100%);      /* 默认隐藏在左侧 */
+  transition: transform .3s ease;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0;        /* 菜单样式，不要圆角 */
+  overflow: hidden;        /* 禁止横向溢出 */
+}
+
+#cart.sheet.show{
+  transform: translateX(0);           /* 显示时滑出 */
+}
+
+/* 遮罩层（点击可关闭） */
+#cartMask{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s ease;
+  z-index: 9998;
+}
+#cartMask.show{
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 头部 */
+#cart .wrap{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 14px 12px;
+  height: 100%;
+  overflow-y: auto;     /* 只竖向滚动 */
+  overflow-x: hidden;   /* 禁横向滚动 */
+}
+#cart .row-between{ 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center;
+  gap: 10px;
+}
+#cart .row-between .title{
+  font-weight: 800;
+  font-size: 18px;
+  color: #dcd1ff;       /* 标题微紫（接近黑可用 #1a0b2e 或 #0a0711） */
+}
+
+/* 商品列表 */
+#cart .items{ 
+  display: flex; 
+  flex-direction: column; 
+  gap: 8px; 
+}
+#cart .items .item{
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 6px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 10px;
+}
+#cart .items .item img{
+  width: 64px; height: 64px; object-fit: cover;
+  border-radius: 8px; border: 1px solid rgba(255,255,255,.15);
+}
+#cart .items .item .meta{
+  display: flex; flex-direction: column; gap: 4px;
+  min-width: 0;          /* 防止文本撑宽导致横向滚动 */
+}
+#cart .items .item .meta .name{
+  font-weight: 700; 
+  color: #f5f5f7; 
+  line-height: 1.2;
+  white-space: nowrap; 
+  overflow: hidden; 
+  text-overflow: ellipsis;
+}
+#cart .items .item .meta .muted{
+  color: #aaa7bd; font-size: 12px;
+}
+
+#cart .items .item .right{
+  display: flex; align-items: center; gap: 10px;
+}
+#cart .qty{
+  display: flex; align-items: center; gap: 8px;
+}
+#cart .qty button{
+  width: 28px; height: 28px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.08);
+  color: #eee; font-weight: 700;
+  line-height: 28px; text-align: center;
+  cursor: pointer;
+}
+#cart .price{
+  min-width: 88px;
+  text-align: right; font-weight: 800;
+  color: #ff6aa4;          /* 单项价格 */
+}
+
+/* 底部汇总固定在底 */
+#cart .footer{
+  position: sticky;
+  bottom: 0;
+  left: 0; right: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  background: linear-gradient(to top, rgba(0,0,0,.75), rgba(0,0,0,.35));
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+#cart .footer .sum{
+  display: grid; gap: 6px; 
+  color: #eae6ff;
+}
+#cart .footer .sum .line{
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 14px;
+}
+#cart .footer .sum .total{
+  font-weight: 800; font-size: 18px; color: #ffd8ec;
+}
+
+/* 按钮 */
+#cart .btn{
+  padding: 10px 14px; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: #202433; color: #fff; cursor: pointer;
+}
+#cart .btn.primary{
+  background: #ff2d8c;
+  border-color: #ff2d8c;
+  color: #fff; font-weight: 800;
+  min-width: 120px; text-align: center;
+}
+
+/* 关闭按钮外观（可沿用你现有的 #cClose.btn） */
+#cClose.btn{ background:#111; color:#fff; border-radius: 10px; }
+ /* 删除按钮通用样式 */
+    .delete-btn {
+      background: none;
+      border: none;
+      color: #ff4d4f; /* 红色垃圾桶 */
+      font-size: 16px;
+      cursor: pointer;
+      margin-left: 12px; /* 和数量按钮保持间距 */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .delete-btn:hover {
+      color: #ff1a1a;
+      transform: scale(1.2);
+    }
+
+    /* 数量和删除按钮的容器 */
+    .qty {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 6px; /* 控制间距 */
+    }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="logo">
+      <img src="https://i.postimg.cc/3NNt56LQ/pink.png" alt="Pink Secret">
+      Pink Secret
+    </div>
+    <input id="search" type="search" placeholder="Search: name / type / description..." style="flex:1; max-width:440px; padding:9px 12px; border-radius:10px; border:1px solid var(--line); background:#0f1119; color:var(--text)"/>
+    <button id="openCart" class="btn cart-btn">Cart</button>
+  </div>
+</header>
+
+<main>
+  <div id="grid" class="grid"></div>
+</main>
+
+<!-- Cart Sheet -->
+<aside id="cart" class="sheet" aria-hidden="true">
+  <div class="wrap" style="padding-top:16px; padding-bottom:18px">
+    </div>
+
+    <!-- 头部 -->
+<div class="row-between">
+  <div class="title">Shopping Cart</div>
+  <button id="cClose" class="btn">Close</button>
+</div>
+
+<!-- 列表 -->
+<div id="cartList" class="items"></div>
+
+<!-- 底部汇总（固定在底） -->
+<div class="footer">
+  <div class="sum">
+    <div class="line"><span>Subtotal</span><span id="cSub">RM 0.00</span></div>
+    <div class="line"><span>Items</span><span id="cartCount">0</span></div>
+    <div class="line total"><span>Total</span><span id="cTotal">RM 0.00</span></div>
+  </div>
+  <a id="goCheckout" href=" " class="btn primary">Pay</a >
+</div>
+</aside>
+<div id="cartMask" class="mask"></div>
+<script>
+(function(){
+  // ---------- 1 Products fixed prices ----------
+  const IMG = {
+    1:'https://i.postimg.cc/vBZGYsSD/babydoll01.jpg',
+    2:'https://i.postimg.cc/wjYHtJbC/chemise02.jpg',
+    3:'https://i.postimg.cc/3RqQ3Dvb/bralette03.jpg',
+    4:'https://i.postimg.cc/wxS3V1GV/corset04.jpg',
+    5:'https://i.postimg.cc/6pK3kDw4/teddy05.jpg',
+    6:'https://i.postimg.cc/0Qz2GvGF/babydoll06.jpg',
+    7:'https://i.postimg.cc/k4LMfHf4/bralette07.jpg',
+    8:'https://i.postimg.cc/L6K6PrJQ/garterset08.jpg',
+    9:'https://i.postimg.cc/bwqyCkHQ/chemise09.jpg',
+    10:'https://i.postimg.cc/j5ntwXtr/robe10.jpg',
+    11:'https://i.postimg.cc/hv9nMtXy/bikiniset11.jpg',
+    12:'https://i.postimg.cc/90j54HLG/teddy12.jpg',
+    13:'https://i.postimg.cc/zG2sCgdD/babydoll13.jpg',
+    14:'https://i.postimg.cc/DztRDKkt/corset14.jpg',
+    15:'https://i.postimg.cc/x1ZZJSCc/bralette15.jpg',
+    16:'https://i.postimg.cc/3RXfc4Zv/chemise16.jpg',
+    17:'https://i.postimg.cc/RhGsvkyC/robe17.jpg',
+    18:'https://i.postimg.cc/pTJkZN2Q/teddy18.jpg',
+    19:'https://i.postimg.cc/Vs4D0cZm/garterset19.jpg',
+    20:'https://i.postimg.cc/7ZJVRJHZ/bikiniset20.jpg'
+  };
+
+  const DESC = {
+    1:'Silky chiffon babydoll with lace trim and satin bow.',
+    2:'Soft satin chemise with delicate lace and adjustable straps.',
+    3:'Lightweight bralette, breathable mesh, comfy all day.',
+    4:'Classic corset with boning support and lace-up back.',
+    5:'Flirty teddy with sheer panels and scalloped lace.',
+    6:'Romantic babydoll with tulip hem and matching thong.',
+    7:'Ribbed bralette, no underwire, flexible and soft.',
+    8:'Garter set with stockings—vintage vibe, modern fit.',
+    9:'Satin chemise with side slits and V-neck lace.',
+    10:'Flowy robe with belt tie, semi-sheer drape.',
+    11:'Bikini set, quick-dry fabric, cheeky coverage.',
+    12:'Velvet teddy with mesh cutouts and snap closure.',
+    13:'Lace babydoll with keyhole back and soft cups.',
+    14:'Brocade corset, steel hooks, dramatic waistline.',
+    15:'Seamless bralette, ultra-soft, everyday comfort.',
+    16:'Slip chemise with eyelash lace hem and straps.',
+    17:'Sheer chiffon robe, light and elegant.',
+    18:'Fishnet teddy with stretch fit and open back.',
+    19:'Lace garter set with adjustable clips.',
+    20:'Triangle bikini set—stretchy, supportive, sleek.'
+  };
+
+  // Fixed prices RM)
+  const PRICE = {
+    1:820,2:740,3:560,4:900,5:650,6:780,7:590,8:870,9:720,10:690,
+    11:630,12:810,13:700,14:880,15:540,16:760,17:600,18:680,19:840,20:620
+  };
+
+  const PRODUCTS = [
+    {id:1, name:'Babydoll Mist Pink', type:'Babydoll', img:IMG[1],  price:PRICE[1],  desc:DESC[1]},
+    {id:2, name:'Chemise Soft Blue', type:'Chemise', img:IMG[2],  price:PRICE[2],  desc:DESC[2]},
+    {id:3, name:'Bralette Nude', type:'Bralette', img:IMG[3],  price:PRICE[3],  desc:DESC[3]},
+    {id:4, name:'Corset Dark Red', type:'Corset', img:IMG[4],  price:PRICE[4],  desc:DESC[4]},
+    {id:5, name:'Teddy Sexy Blue', type:'Teddy', img:IMG[5],  price:PRICE[5],  desc:DESC[5]},
+    {id:6, name:'Babydoll Peach', type:'Babydoll', img:IMG[6],  price:PRICE[6],  desc:DESC[6]},
+    {id:7, name:'Bralette Pink', type:'Bralette', img:IMG[7],  price:PRICE[7],  desc:DESC[7]},
+    {id:8, name:'Garter Set Black', type:'Garter set', img:IMG[8],  price:PRICE[8],  desc:DESC[8]},
+    {id:9, name:'Chemise Black', type:'Chemise', img:IMG[9],  price:PRICE[9],  desc:DESC[9]},
+    {id:10, name:'Robe Ink', type:'Robe', img:IMG[10], price:PRICE[10], desc:DESC[10]},
+    {id:11, name:'Bikini Set Blue', type:'Bikini set', img:IMG[11], price:PRICE[11], desc:DESC[11]},
+    {id:12, name:'Teddy Velvet', type:'Teddy', img:IMG[12], price:PRICE[12], desc:DESC[12]},
+    {id:13, name:'Babydoll Random Clour', type:'Babydoll', img:IMG[13], price:PRICE[13], desc:DESC[13]},
+    {id:14, name:'Corset Black', type:'Corset', img:IMG[14], price:PRICE[14], desc:DESC[14]},
+    {id:15, name:'Bralette Pink', type:'Bralette', img:IMG[15], price:PRICE[15], desc:DESC[15]},
+    {id:16, name:'Chemise Pink', type:'Chemise', img:IMG[16], price:PRICE[16], desc:DESC[16]},
+    {id:17, name:'Robe White Blue', type:'Robe', img:IMG[17], price:PRICE[17], desc:DESC[17]},
+    {id:18, name:'Teddy Black', type:'Teddy', img:IMG[18], price:PRICE[18], desc:DESC[18]},
+    {id:19, name:'Garter Set Red Black', type:'Garter set', img:IMG[19], price:PRICE[19], desc:DESC[19]},
+    {id:20, name:'Bikini Set Black', type:'Bikini set', img:IMG[20], price:PRICE[20], desc:DESC[20]}
+  ];
+
+  // ---------- 2) UI elements ----------
+  const grid   = document.getElementById('grid');
+  const search = document.getElementById('search');
+  const cart   = document.getElementById('cart');
+  const cartMask = document.getElementById('cartMask');
+  const openCart = document.getElementById('openCart');
+  const cClose = document.getElementById('cClose');
+  const cartList = document.getElementById('cartList');
+  const cSub   = document.getElementById('cSub');
+  const cartCount = document.getElementById('cartCount');
+  const cTotal = document.getElementById('cTotal');
+
+  // ---------- 3) Cart data ----------
+  let CART = loadCart();
+  function loadCart(){ 
+    try{ return JSON.parse(localStorage.getItem('PS_CART')) || []; 
+    }
+    catch(e){ return []; } 
+}
+  function saveCart(){ 
+    localStorage.setItem('PS_CART', JSON.stringify(CART)); 
+}
+
+// === Cart storage helpers ===
+const CART_KEY = 'PS_CART';
+
+function readCart() {
+  try {
+    return JSON.parse(localStorage.getItem(CART_KEY)) || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveCart(cart) {
+  localStorage.setItem(CART_KEY, JSON.stringify(cart));
+}
+
+// 加入购物车（若已存在则 qty+1）
+function addToCart(id) {
+  const cart = readCart();                // 读现有购物车
+  const numId = Number(id);
+  let item = cart.find(x => x.id === numId);
+
+  if (item) {
+    item.qty += 1;
+  } else {
+    cart.push({ id: numId, qty: 1 });
+  }
+
+  saveCart(cart);                         // 写回 localStorage
+  updateCartUI();                         // 刷新右侧购物车 UI（cSub/cTotal/cnt 等）
+}
+
+  // ---------- 4) Render product card ----------
+ function productCard(p){
+  const card = document.createElement('article');
+  card.className = 'card';
+
+  const img = document.createElement('img');
+  img.src = p.img;
+  img.alt = p.name;
+  img.loading = 'lazy';
+  card.appendChild(img);
+
+  const pad = document.createElement('div');
+  pad.className = 'pad';
+  card.appendChild(pad);
+
+  // 第一行：pill + price
+  const row1 = document.createElement('div');
+  row1.className = 'row-between';
+
+  const pill = document.createElement('div');
+  pill.className = 'pill';
+  pill.textContent = `Women · ${p.type}`;
+
+  const price = document.createElement('div');
+  price.className = 'price';
+  price.textContent = `RM ${p.price.toFixed(2)}`;
+
+  row1.append(pill, price);
+  pad.appendChild(row1);
+
+  // 标题
+  const title = document.createElement('div');
+  title.className = 'title';
+  title.style.marginTop = '6px';
+  title.textContent = p.name;
+  pad.appendChild(title);
+
+  // 描述
+  const muted = document.createElement('div');
+  muted.className = 'muted';
+  muted.style.marginTop = '6px';
+  muted.textContent = p.desc || '';
+  pad.appendChild(muted);
+
+  // 按钮行
+  const rowR = document.createElement('div');
+  rowR.className = 'row-right';
+  rowR.style.marginTop = '10px';
+
+  const btnDetail = document.createElement('button');
+  btnDetail.className = 'btn';
+  btnDetail.dataset.act = 'detail';
+  btnDetail.dataset.id = p.id;
+  btnDetail.textContent = 'Details';
+
+  const btnAdd = document.createElement('button');
+  btnAdd.className = 'btn primary';   // ← 再也不会因为引号报错
+  btnAdd.dataset.act = 'add';
+  btnAdd.dataset.id = p.id;
+  btnAdd.style.marginLeft = '8px';
+  btnAdd.textContent = 'Add to Cart';
+
+  rowR.append(btnDetail, btnAdd);
+  pad.appendChild(rowR);
+
+  return card;
+}
+
+  // ---------- 5) Render list ----------
+ function render () {
+  const gridEl = document.getElementById('grid');   // ← 统一用这个
+  const q   = (search.value || '').trim().toLowerCase();
+  const list = q
+    ? PRODUCTS.filter(x => (x.name + x.type + x.desc).toLowerCase().includes(q))
+    : PRODUCTS;
+
+  gridEl.innerHTML = '';
+  list.forEach(p => gridEl.appendChild(productCard(p)));
+}
+  search.addEventListener('input', render);
+
+  // ---------- 6) Cart ops ----------
+  // 加入购物车（id 为数字或字符串都可）
+// 改变数量/删除
+function changeQTY(id, delta) {
+  const cart = loadCart();
+  const nid = Number(id);
+  const it = cart.find(x => x.id === nid);
+  if (!it) return;
+  it.qty += delta;
+  if (it.qty <= 0) {
+    const i = cart.indexOf(it);
+    cart.splice(i, 1);
+  }
+  saveCart(cart);
+  updateCartUI();
+}
+  function changeQty(id, d){
+    const it = CART.find(x=>x.id===id); if(!it) return;
+    it.qty += d; if(it.qty<=0) CART = CART.filter(x=>x.id!==id);
+    saveCart(); updateCartUI();
+  }
+  function removeItem(id){
+    CART = CART.filter(x=>x.id!==id); saveCart(); updateCartUI();
+  }
+
+  function RM(n){ return 'RM ' + (+n).toFixed(2); }
+
+// 刷新购物车 UI（列表/小计/合计/件数）
+function updateCartUI() {
+  const cart = loadCart();
+
+  const listEl  = document.getElementById('cartList');
+  const subEl   = document.getElementById('cSub');
+  const totEl   = document.getElementById('cTotal');
+  const cntEl   = document.getElementById('cartCount');
+
+  if (!listEl || !subEl || !totEl || !cntEl) return; // 缺任何一个就先退出
+
+  listEl.innerHTML = '';
+  let subtotal = 0;
+  let count = 0;
+
+  cart.forEach(it => {
+    const p = PRODUCTS.find(x => x.id === it.id);
+    if (!p) return;
+    const line = p.price * it.qty;
+    subtotal += line;
+    count += it.qty;
+
+    // 一条购物车行
+    const row = document.createElement('div');
+    row.className = 'item';
+    row.innerHTML =
+      '<img src="' + p.img + '" alt="' + p.name + '">' +
+      '<div>' +
+      '  <div style="font-weight:800">' + p.name + '</div>' +
+      '  <div class="muted">Women · ' + p.type + '</div>' +
+      '</div>' +
+      '<div style="text-align:right">' +
+      '  <div class="price">' + RM(line) + '</div>' +
+      '  <div class="qty" style="margin-top:6px">' +
+      '    <button aria-label="minus" data-act="m" data-id="' + p.id + '">-</button>' +
+      '    <span style="display:inline-block;width:28px;text-align:center">' + it.qty + '</span>' +
+      '    <button aria-label="plus" data-act="p" data-id="' + p.id + '">+</button>' +
+      '    <button class="btn" style="margin-left:8px" data-act="d" data-id="' + p.id + '">🗑️</button>' +
+      '  </div>' +
+      '</div>';
+      // 行内事件
+    row.querySelector('[data-act="m"]').onclick = () => changeQTY(it.id, -1);
+    row.querySelector('[data-act="p"]').onclick = () => changeQTY(it.id,  1);
+    row.querySelector('[data-act="d"]').onclick = () => changeQTY(it.id, -999);
+
+    listEl.appendChild(row);
+  });
+
+  subEl.textContent = RM(subtotal);
+  totEl.textContent = RM(subtotal);   // 首页先等于小计
+  cntEl.textContent = count;
+}
+
+openCart.onclick = () => {
+  cart.classList.add('show');
+  updateCartUI();          // ← 这里要有分号
+};
+
+cClose.onclick = () => {
+  cart.classList.remove('show');
+};
+
+cartMask.onclick = cClose.onclick;
+
+document.getElementById('goCheckout').addEventListener('click', function (e) {
+    e.preventDefault();
+
+    const items = (window.CART || []).map(it => {
+      const p = (window.PRODUCTS || []).find(x => x.id === it.id);
+      if (!p) return null;
+      return { id: p.id, name: p.name, img: p.img, price: p.price, qty: it.qty };
+    }).filter(Boolean);
+
+    localStorage.setItem('PS_ORDER_ITEMS', JSON.stringify(items));
+    location.href = 'payment2.html';
+  });
+
+  // ---------- 8) Snapshot for checkout ----------
+  function snapshotOrder(){
+    const items = CART.map(it=>{
+      const p = PRODUCTS.find(x=>x.id===it.id); if(!p) return null;
+      return { id:p.id, name:p.name, img:p.img, price:p.price, qty:it.qty };
+    }).filter(Boolean);
+    localStorage.setItem('PS_ORDER_ITEMS', JSON.stringify(items));
+    // 清理旧 totals，确保后续统一
+    localStorage.removeItem('PS_ORDER_TOTALS');
+    localStorage.removeItem('PS_SHIP');
+  }
+
+// 统一监听所有 Add to Cart 按钮
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('button, a');
+  if (!btn) return;
+
+  // 商品卡片上的 “Add to Cart” 按钮
+  if (btn.dataset && btn.dataset.act === 'add' && btn.dataset.id) {
+      console.count('[add] called');
+    addToCart(btn.dataset.id);
+    const cartEl = document.getElementById('cart');
+    if (cartEl && cartEl.classList) cartEl.classList.add('show');
+  }
+});
+ // -------- 9) boot (safe) --------
+function safeBoot() {
+  try {
+    console.log('[BOOT] starting…',
+      { hasProducts: typeof PRODUCTS !== 'undefined',
+        hasCart: typeof CART !== 'undefined',
+        hasRender: typeof render === 'function',
+        hasUpdateUI: typeof updateCartUI === 'function' });
+
+    if (typeof render === 'function') render();
+    if (typeof updateCartUI === 'function') updateCartUI();
+
+    const goBtn = document.getElementById('goCheckout');
+    if (goBtn) goBtn.addEventListener('click', snapshotOrder);
+
+    console.log('[BOOT] ok');
+  } catch (e) {
+    console.error('[BOOT ERROR]', e);
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<pre id="dbg" style="background:#200;color:#f88;padding:12px;white-space:pre-wrap;border:1px solid #400;">
+[BOOT ERROR]
+${e.stack || e}
+</pre>`
+    );
+  }
+}
+// 统一监听商品区所有按钮（只加入，不弹出购物车）
+document.getElementById('grid').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;                          // 不是按钮，忽略
+
+  const id  = Number(btn.dataset.id);
+  const act = btn.dataset.act;
+
+  if (act === 'add') {
+    addToCart(id);                           // 加入购物车
+    updateCartUI();                          // 刷新数量/小计（不打开抽屉）
+    if (typeof updateCartBadge === 'function') updateCartBadge(); // 可选：右上角徽标
+  }
+
+  if (act === 'detail') {
+    openDetail(id);
+  }
+});
+
+// 保留你的启动逻辑
+window.addEventListener('DOMContentLoaded', safeBoot);
+ // 保险：等 DOM 就绪再绑定
+  window.addEventListener('DOMContentLoaded', () => {
+    const cartEl   = document.getElementById('cart');     // 侧栏
+    const openCart = document.getElementById('openCart'); // 顶部按钮
+    const cClose   = document.getElementById('cClose');   // 关闭按钮
+    const cartMask = document.getElementById('cartMask'); // 遮罩（如果有）
+
+    // 如果找不到元素，打印提示，方便你看 Console
+    console.log('[Cart bind]', {cartEl: !!cartEl, openCart: !!openCart, cClose: !!cClose, cartMask: !!cartMask});
+
+    // 统一的“稳健绑定”（既有直绑，也有事件委托作为兜底）
+    function showCart(e){
+      if (!cartEl) return;
+      cartEl.classList.add('show');
+      e && e.preventDefault();
+      e && e.stopPropagation();
+    }
+    function hideCart(e){
+      if (!cartEl) return;
+      cartEl.classList.remove('show');
+      e && e.preventDefault();
+      e && e.stopPropagation();
+    }
+
+    // 直绑
+    if (openCart) openCart.addEventListener('click', showCart);
+    if (cClose)   cClose.addEventListener('click', hideCart);
+    if (cartMask) cartMask.addEventListener('click', hideCart);
+
+    // 兜底：事件委托（即使以后按钮被重渲染也能点）
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('#openCart')) showCart(e);
+      if (e.target.closest('#cClose') || e.target.closest('#cartMask')) hideCart(e);
+    });
+  });
+})();
+// ===== 统一的 Add to Cart 事件委托（只绑定一次）=====
+(function bindAddOnce(){
+  if (window.__boundAddToCart) return;        // 防止重复绑定
+  window.__boundAddToCart = true;
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('button, a');
+    if (!btn) return;
+
+    // 只处理带 data-act 的按钮
+    const act = btn.dataset?.act;
+    const id  = btn.dataset?.id;
+
+    if (act === 'add' && id != null) {
+      console.count('[add] fired');           // 调试：应只递增 1,2,3...
+      addToCart(Number(id));                  // 真正加车
+      updateCartUI?.();                       // 重绘购物车（可选）
+      // 不自动弹出购物车的话，保留这行为空即可
+      // document.getElementById('cart')?.classList.add('show');
+    }
+
+    if (act === 'detail' && id != null) {
+      openDetail?.(Number(id));
+    }
+  });
+})();
+</script>
+</body>
+</html>
